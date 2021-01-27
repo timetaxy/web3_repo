@@ -1,0 +1,31 @@
+{
+    "pkey": "",
+    "blockchain": {
+        "tomoRpc": "",
+        "ethRpc": "",
+        "chainId": ""
+    },
+    "serverAPI": "http://206.189.39.242:9000",
+    "btc": {
+        "confirmations": 2,
+        "decimals": 8,
+        "explorerUrl": "https://www.blockchain.com/btc/",
+        "wrapperAddress": "0xC2fa1BA90b15E3612E0067A0020192938784D9C5"
+    },
+    "eth": {
+        "confirmations": 3,
+        "decimals": 18,
+        "explorerUrl": "https://etherscan.io/",
+        "wrapperAddress": "0xAad540ac542C3688652a3fc7b8e21B3fC1D097e9"
+    },
+    "usdt": {
+        "confirmations": 3,
+        "decimals": 6,
+        "explorerUrl": "https://etherscan.io/",
+        "wrapperAddress": "0x45c25041b8e6CBD5c963E7943007187C3673C7c9"
+    },
+    "senderUSDTPk": "",
+    "senderETHPk": "",
+    "senderBTCPk": "",
+    "receiverPk": ""
+}

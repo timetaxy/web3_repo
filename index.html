@@ -1,0 +1,38 @@
+<html>
+	<header></header>
+	<body>
+		<div class="text-center">
+			Hello
+			<span class="account"> Unlock your wallet</span>
+		</div>
+	</body>
+	<footer>
+		
+	</footer>
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+	<script src="build/web3.js"></script>
+	<!-- <script src="https://cdn.jsdelivr.net/gh/ethereum/web3.js/dist/web3.min.js"></script> -->
+	<script type="text/javascript">
+		if (typeof window.ethereum !== 'undefined') {
+			// window.ethereum.enable();
+			window.ethereum.request({ method: 'eth_requestAccounts' });
+			const web3 = new Web3(window.ethereum);
+			web3.eth.getAccounts().then((err, accounts) => {
+				if (err) {
+					throw err;
+				}
+				if (accounts.length == 0) {
+					console.log(accounts)
+					document.getElementsByClassName('account')[0].innerHTML = accounts[0]
+					console.log('Locked');
+				} else {
+					console.log('nothing')
+				}
+			}).catch(error => {
+				document.getElementsByClassName('account')[0].innerHTML = error
+			});
+		} else {
+				console.log('Unavailable');
+		}
+	</script>
+</html>

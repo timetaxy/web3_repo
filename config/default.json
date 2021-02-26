@@ -27,5 +27,6 @@
     "senderUSDTPk": "",
     "senderETHPk": "",
     "senderBTCPk": "",
-    "receiverPk": ""
+    "receiverPk": "",
+    "infuraKey": ""
 }

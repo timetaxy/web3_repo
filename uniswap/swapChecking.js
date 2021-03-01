@@ -1,11 +1,12 @@
 const luaswapPrice = require('./price')
 
 const Lua = require('./lua')
+const config = require('config')
 
 
-const PRIVATE_KEY = "45a59296bfdb8f88bcd1e99c28bc1b0e294e394062e6bad340b410c343781dd3"
+const PRIVATE_KEY = config.get('truffle.privateKey')
 
-const INFURA_KEY = "7883a7554949449c8e5462b20a3ff12b"
+const INFURA_KEY = config.get('infuraKey')
 
 luaswapPrice.setInfuraKey(INFURA_KEY)
 

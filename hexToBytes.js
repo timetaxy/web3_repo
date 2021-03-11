@@ -15,7 +15,7 @@ const string2byte = (str) => {
 
 const Web3 = require('web3')
 const web3 = new Web3()
-const a = web3.utils.hexToBytes('0x89e0ff960000000000000000000000000000000000000000000000000000000000000001')
+const a = web3.utils.hexToBytes('0x31ac99200000000000000000000000000000000000000000000000000000000000000001')
 const b = a.toString().split(' ').join('')
 console.log(b)
 

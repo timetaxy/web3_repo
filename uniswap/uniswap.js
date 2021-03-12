@@ -25,9 +25,10 @@ async function getPrice (baseToken, quoteToken) {
         route = await new Route([baseQuote], base),
         trade = new Trade(route, new TokenAmount(base, 1000000000000000000), TradeType.EXACT_INPUT)
 
-        // pairs[weth/dai, poolz/weth], tokenIn - DAI, amountOut - 1 POOLZ ---- BUY
+        // pairs[weth/dai, poolz/weth], tokenIn - DAI, amountOut - 1 POOLZ 
         trade2 = Trade.bestTradeExactOut([baseQuote], base, new TokenAmount(quote, '10000000000000000000'), { maxHops: 3, maxNumResults: 1 })[0]
-        // pairs[weth/dai, poolz/weth], amountIn - 1 DAI, tokenOut - POOLZ ---- SELL
+
+        // pairs[weth/dai, poolz/weth], amountIn - 1 DAI, tokenOut - POOLZ 
         trade3 = Trade.bestTradeExactIn([baseQuote], new TokenAmount(base, '10000000000000000000'), quote, { maxHops: 3, maxNumResults: 1 })[0]
 
         // get price quote to base //buy
@@ -52,8 +53,8 @@ async function getPrice (baseToken, quoteToken) {
    console.log(`1 base = ${trade2.executionPrice.toSignificant(6)} quote`)
    console.log(`Invert 1 quote = ${trade2.executionPrice.invert().toSignificant(6)} base`)
    console.log('----------Exact in 1 base = xx quote -------------------')
-   console.log(`1 quote = ${trade3.executionPrice.toSignificant(6)} base`)
-   console.log(`Invert 1 base = ${trade3.executionPrice.invert().toSignificant(6)} quote`)
+   console.log(`1 base = ${trade3.executionPrice.toSignificant(6)} quote`)
+   console.log(`Invert 1 quote = ${trade3.executionPrice.invert().toSignificant(6)} base`)
    console.log('----------Route in quote --------------------------------')
    console.log(`1 quote = ${trade4.executionPrice.toSignificant(6)} base`)
    console.log(`Invert 1 base = ${trade4.executionPrice.invert().toSignificant(6)} quote`)

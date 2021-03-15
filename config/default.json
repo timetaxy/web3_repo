@@ -28,5 +28,7 @@
     "senderETHPk": "",
     "senderBTCPk": "",
     "receiverPk": "",
-    "infuraKey": ""
+    "infuraKey": "",
+    "telegramToken": "",
+    "userIdTele": ""
 }

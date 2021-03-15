@@ -27,9 +27,11 @@ const {
 
 const { Interface } = require('@ethersproject/abi')
 const IUniswapV2PairABI = require('../abis/IUniswapV2Pair.json')
+const config = require('config')
 
 const ERC20Abi = require('../abis/ERC20.json')
 const Web3 = require('web3')
+const axios = require('axios')
 
 const chainId = 56
 
@@ -50,21 +52,25 @@ function wrappedCurrencyAmount(
     return token && currencyAmount ? new TokenAmount(token, currencyAmount.raw) : undefined
 }
 
+function getPairs (arr) {
+    let res = [],
+        l = arr.length
+    for(var i=0; i<l; ++i)
+        for(var j=i+1; j<l; ++j)
+            res.push([
+                new Token(ChainId.MAINNET, arr[i][0], arr[i][1]),
+                new Token(ChainId.MAINNET, arr[j][0], arr[j][1])
+            ])
+    return res
+}
 
-async function run (baseToken, quoteToken, midToken, tradeAmount, chainId) {
+
+async function run (baseToken, quoteToken, pairList, tradeAmount, chainId) {
     const base = new Token(chainId, baseToken[0], baseToken[1])
     const quote = new Token(chainId, quoteToken[0], quoteToken[1])
-    const mid = new Token(chainId, midToken[0], midToken[1])
-
-    const baseQuote = Pair.getAddress(base, quote)
-    const baseMid = Pair.getAddress(base, mid)
-    const quoteMid = Pair.getAddress(quote, mid)
-
-    const pairs = [
-        [base, quote],
-        [quote, mid],
-        [base, mid]
-    ]
+    const a = [baseToken]
+    pairList.map(i => a.push(i))
+    const pairs = getPairs(a)
 
     const pairFetchs = await Promise.all(pairs.map(async p => {
         const web3 = new Web3(new Web3.providers.HttpProvider(rpc))
@@ -87,17 +93,17 @@ async function run (baseToken, quoteToken, midToken, tradeAmount, chainId) {
         }
     })
     const route = await new Route([avaiablePairs[0]], base)
-    const trade = new Trade(route, new TokenAmount(base, 10000000000000000000), TradeType.EXACT_INPUT)
+    const trade = new Trade(route, new TokenAmount(base, tradeAmount), TradeType.EXACT_INPUT)
 
-    const trade2 = Trade.bestTradeExactOut(avaiablePairs, quote, new TokenAmount(base, '10000000000000000'), { maxHops: 3, maxNumResults: 1})[0]
-    const trade3 = Trade.bestTradeExactIn(avaiablePairs, new TokenAmount(base, '10000000000000000'), quote, { maxHops: 3, maxNumResults: 1})[0]
+    const trade2 = Trade.bestTradeExactOut(avaiablePairs, quote, new TokenAmount(base, tradeAmount), { maxHops: 3, maxNumResults: 1})[0]
+    const trade3 = Trade.bestTradeExactIn(avaiablePairs, new TokenAmount(base, tradeAmount), quote, { maxHops: 3, maxNumResults: 1})[0]
 
-    const route2 = await new Route(avaiablePairs, quote) // weth/poolz + dai/weth onput token is quote
-    const trade4 = new Trade(route2, new TokenAmount(quote, 10000000000000000000), TradeType.EXACT_INPUT)
+    const route2 = await new Route([avaiablePairs[0]], quote) // weth/poolz + dai/weth onput token is quote
+    const trade4 = new Trade(route2, new TokenAmount(quote, tradeAmount), TradeType.EXACT_INPUT)
 
     console.log('----------Route in base --------------------------------')
-    console.log(`10 base = ${trade.executionPrice.toSignificant(6)} quote`)
-    console.log(`Invert 10 quote = ${trade.executionPrice.invert().toSignificant(6)} base`)
+    console.log(`1 base = ${trade.executionPrice.toSignificant(6)} quote`)
+    console.log(`Invert 1 quote = ${trade.executionPrice.invert().toSignificant(6)} base`)
     console.log('')
     console.log('----------Exact out xx quote = 1 base ------------------')
     console.log(`1 quote = ${trade2.executionPrice.toSignificant(6)} base`)
@@ -110,22 +116,37 @@ async function run (baseToken, quoteToken, midToken, tradeAmount, chainId) {
     console.log('----------Route in quote --------------------------------')
     console.log(`1 quote = ${trade4.executionPrice.toSignificant(6)} base`)
     console.log(`Invert 1 base = ${trade4.executionPrice.invert().toSignificant(6)} quote`)
+
+    if (trade2.executionPrice.invert().toSignificant(6) >= 55) {
+        axios.get(
+            'https://api.telegram.org/bot' +
+            config.get('telegramToken') +
+            '/sendMessage?' +
+            'chat_id=' + config.get('userIdTele') +
+            '&text=Wow lên 55 rồi kìa'
+        ).catch(error => console.log(error))
+    }
 }
 
 const busd = "0xe9e7cea3dedca5984780bafc599bd69add087d56"
 const wow = "0x4da996c5fe84755c80e108cf96fe705174c5e36a"
-const DAI_BAS_PAIR_ADDRESS = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
 const wbnb = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'
+const usdt = '0x55d398326f99059ff775485246999027b3197955'
+const usdc = '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d'
 
 const decimal = 18;
-const DAI_DECIMAL = 18;
-const POOLZ_ADDRESS = '0x69a95185ee2a045cdc4bcd1b1df10710395e4e23'
-const POOLZ_DECIMAL = 18
+
+const pairList = [
+    [busd, decimal],
+    [wbnb, decimal],
+    [usdt, decimal],
+    // [usdc, decimal]
+]
 
 setInterval(async () => {
     await run(
-    [wow, decimal],
-    [busd, decimal],
-    [wbnb, decimal],
-    "10000000000000000000", ChainId.MAINNET)
+    [wow, decimal], // base
+    [busd, decimal], //quote
+    pairList,
+    "1000000000000000000", ChainId.MAINNET)
 }, 5000);

@@ -4,17 +4,24 @@ const config = require('config')
 
 
 async function run (message) {
-    const account = '0x33c2E732ae7dce8B05F37B2ba0CFe14c980c4Dbe'
+    const account = ''
     const walletProvider = new PrivateKeyProvider(
         config.get('truffle.privateKey'),
         'https://rpc.devnet.tomochain.com'
     )
     const web3 = new Web3(walletProvider)
 
-    const hash = web3.utils.soliditySha3({ t: 'string', v: message })
+    const hash = web3.utils.soliditySha3(
+        { t: 'address', v: '' },
+        { t: 'bytes32', v: '' },
+        { t: 'address', v: '' },
+        { t: 'uint256', v: 2 },
+        { t: 'uint256', v: '10000000000000000000' },
+        { t: 'uint', v: '1' }
+    )
     console.log(hash)
     const hash2 = web3.eth.accounts.hashMessage(hash)
-    console.log(hash2)
+    console.log('hash2', hash2)
 
     const personalSign = await web3.eth.personal.sign(hash, account, '')
     const ethSign = await web3.eth.sign(hash, account)
@@ -30,4 +37,4 @@ async function run (message) {
     console.log(verify)
 }
 run('abcd')
-// 0xae74d9b809997e2ecd8313a7df04b0d4c0c3c3d73b828056a15220980d5f11093927700fb9cc87a9d52851d83a45eefd2bd3624f587d52aada0b53a23519b69c1c
+// 

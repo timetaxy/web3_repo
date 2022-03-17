@@ -61,18 +61,14 @@ library SafeMath {
 }
 
 /**
- * @title TRC21 interface
+ * @title 0 interface
  */
-interface ITRC21 {
+interface ITRC20 {
     function totalSupply() external view returns (uint256);
 
     function balanceOf(address who) external view returns (uint256);
 
-    function issuer() external view returns (address);
-
     function decimals() external view returns (uint8);
-
-    function estimateFee(uint256 value) external view returns (uint256);
 
     function allowance(address owner, address spender) external view returns (uint256);
 
@@ -85,20 +81,16 @@ interface ITRC21 {
     event Transfer(address indexed from, address indexed to, uint256 value);
 
     event Approval(address indexed owner, address indexed spender, uint256 value);
-
-    event Fee(address indexed from, address indexed to, address indexed issuer, uint256 value);
 }
 
 /**
- * @title Standard TRC21 token
+ * @title Standard TRC20 token
  * @dev Implementation of the basic standard token.
  */
-contract TRC21 is ITRC21 {
+contract TRC20 is ITRC20 {
     using SafeMath for uint256;
 
     mapping (address => uint256) private _balances;
-    uint256 private _minFee;
-    address private _issuer;
     mapping (address => mapping (address => uint256)) private _allowed;
     uint256 private _totalSupply;
 
@@ -132,39 +124,12 @@ contract TRC21 is ITRC21 {
     }
 
     /**
-     * @dev  The amount fee that will be lost when transferring.
-     */
-    function minFee() public view returns (uint256) {
-        return _minFee;
-    }
-
-    /**
-     * @dev token's foundation
-     */
-    function issuer() public view returns (address) {
-        return _issuer;
-    }
-
-    /**
      * @dev Gets the balance of the specified address.
      * @param owner The address to query the balance of.
      * @return An uint256 representing the amount owned by the passed address.
      */
     function balanceOf(address owner) public view returns (uint256) {
         return _balances[owner];
-    }
-
-    /**
-     * @dev Estimate transaction fee.
-     * @param value amount tokens sent
-     */
-    function estimateFee(uint256 value) public view returns (uint256) {
-        return value.mul(0).add(_minFee);
-    }
-
-    function setMinFee(uint256 value) public {
-        require(msg.sender == _issuer);
-        _changeMinFee(value);
     }
 
     /**
@@ -183,16 +148,10 @@ contract TRC21 is ITRC21 {
      * @param value The amount to be transferred.
      */
     function transfer(address to, uint256 value) public returns (bool) {
-        require(to != address(0));
-        uint256 total = value.add(_minFee);
-        require(total <= _balances[msg.sender]);    
         _transfer(msg.sender, to, value);
-        if (_minFee > 0) {
-            _transfer(msg.sender, _issuer, _minFee);
-            emit Fee(msg.sender, to, _issuer, _minFee);
-        }
         return true;
     }
+
 
     /**
      * @dev Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
@@ -205,9 +164,8 @@ contract TRC21 is ITRC21 {
      */
     function approve(address spender, uint256 value) public returns (bool) {
         require(spender != address(0));
-        require(_balances[msg.sender] >= _minFee);
+
         _allowed[msg.sender][spender] = value;
-        _transfer(msg.sender, _issuer, _minFee);
         emit Approval(msg.sender, spender, value);
         return true;
     }
@@ -219,14 +177,10 @@ contract TRC21 is ITRC21 {
      * @param value uint256 the amount of tokens to be transferred
      */
     function transferFrom(address from,	address to,	uint256 value)	public returns (bool) {
-        uint256 total = value.add(_minFee);
-        require(total <= _balances[from]);   
-        require(value <= _allowed[from][msg.sender]);   //msg.sender should be allowed to transfer maximum of value amount
+        require(value <= _allowed[from][msg.sender]);
 
-        _allowed[from][msg.sender] = _allowed[from][msg.sender].sub(total);
+        _allowed[from][msg.sender] = _allowed[from][msg.sender].sub(value);
         _transfer(from, to, value);
-        _transfer(from, _issuer, _minFee);
-        emit Fee(msg.sender, to, _issuer, _minFee);
         return true;
     }
 
@@ -272,27 +226,10 @@ contract TRC21 is ITRC21 {
         _balances[account] = _balances[account].sub(value);
         emit Transfer(account, address(0), value);
     }
-
-    /**
-     * @dev Transfers token's foundation to new issuer
-     * @param newIssuer The address to transfer ownership to.
-     */
-    function _changeIssuer(address newIssuer) internal {
-        require(newIssuer != address(0));
-        _issuer = newIssuer;
-    }
-
-    /**
-     * @dev Change minFee
-     * @param value minFee
-     */
-    function _changeMinFee(uint256 value) internal {
-        _minFee = value;
-    }
 }
 
 //Wrap token based on multisig wallet that only mints new token if there are user deposits 
-contract MyTRC21 is TRC21 {
+contract TomoBridgeWrapTokenV2 is TRC20 {
     /*
      *  Events
      */
@@ -306,6 +243,9 @@ contract MyTRC21 is TRC21 {
     event OwnerRemoval(address indexed owner);
     event RequirementChange(uint required);
     event TokenBurn(uint256 indexed burnID, address indexed burner, uint256 value, bytes data);
+    event ToggleFeeByTomoMode(bool isFeeByTomoMode);
+    event SetWithdrawFeeTomo(uint withdrawFeeTomo);
+    event SetReceivingFeeWallet(address receivingFeeWallet);
 
     /*
      *  Constants
@@ -313,6 +253,8 @@ contract MyTRC21 is TRC21 {
     uint constant public MAX_OWNER_COUNT = 50;
     uint public WITHDRAW_FEE = 0;
     uint public DEPOSIT_FEE = 0;
+    uint public WITHDRAW_FEE_TOMO = 4 ether; // 4 TOMO
+    bool public TOMO_FEE_MODE = false;
     
     /*
      *  Storage
@@ -324,6 +266,9 @@ contract MyTRC21 is TRC21 {
     uint public required;
     uint public transactionCount;
     TokenBurnData[] public burnList;
+    string public original_contract;
+    string public original_network;
+    address public receivingFeeWallet;
 
     struct TokenBurnData {
         uint256 value;
@@ -343,11 +288,6 @@ contract MyTRC21 is TRC21 {
      */
     modifier onlyWallet() {
         require(msg.sender == address(this));
-        _;
-    }
-
-    modifier onlyContractIssuer() {
-        require(msg.sender == issuer());
         _;
     }
 
@@ -403,33 +343,37 @@ contract MyTRC21 is TRC21 {
     constructor (address[] _owners,
                  uint _required, string memory _name,
                  string memory _symbol, uint8 _decimals,
-                 uint256 cap, uint256 minFee,
-                 uint256 depositFee, uint256 withdrawFee
-                ) TRC21(_name, _symbol, _decimals) public validRequirement(_owners.length, _required) {
-        _mint(msg.sender, cap);
-        _changeIssuer(msg.sender);
-        _changeMinFee(minFee);
+                 uint256 cap,
+                 uint256[] depositAndWithdrawFee, string memory originContract, string memory network
+                ) TRC20(_name, _symbol, _decimals) public validRequirement(_owners.length, _required) {
+
         for (uint i=0; i<_owners.length; i++) {
             require(!isOwner[_owners[i]] && _owners[i] != 0);
             isOwner[_owners[i]] = true;
         }
-        owners = _owners;
-        required = _required;
-        DEPOSIT_FEE = depositFee;
-        WITHDRAW_FEE = withdrawFee;
-    }
-
-    function transferContractIssuer(address newOwner) public onlyContractIssuer {
-        if (newOwner != address(0)) {
-            _changeIssuer(msg.sender);
+        {
+            _mint(msg.sender, cap);
+            owners = _owners;
+            required = _required;
+            DEPOSIT_FEE = depositAndWithdrawFee[0];
+            WITHDRAW_FEE = depositAndWithdrawFee[1];
+            original_contract = originContract;
+            original_network = network;
+            receivingFeeWallet = owners[0];
         }
     }
 
-    function setDepositFee(uint256 depositFee) public onlyContractIssuer {
+    function setDepositFee(uint256 depositFee)
+    public
+    onlyWallet
+    {
         DEPOSIT_FEE = depositFee;
     }
 
-    function setWithdrawFee(uint256 withdrawFee) public onlyContractIssuer {
+    function setWithdrawFee(uint256 withdrawFee)
+    public
+    onlyWallet
+    {
         WITHDRAW_FEE = withdrawFee;
     }
 
@@ -444,7 +388,38 @@ contract MyTRC21 is TRC21 {
     {
         isOwner[owner] = true;
         owners.push(owner);
-        OwnerAddition(owner);
+        emit OwnerAddition(owner);
+    }
+
+    /// @dev Allows to change withdraw fee by tomo
+    /// @param withdrawFee Number of required confirmations.
+    function setWithdrawFeeTomo(uint withdrawFee)
+    public
+    onlyWallet
+    {
+        require(withdrawFee >= 0);
+        WITHDRAW_FEE_TOMO = withdrawFee;
+        emit SetWithdrawFeeTomo(withdrawFee);
+    }
+
+    /// @dev Allows to change withdraw fee mode. Transaction has to be sent by wallet.
+    /// @param isFeeByTomoMode Fee mode.
+    function toggleFeeByTomoMode(bool isFeeByTomoMode)
+    public
+    onlyWallet
+    {
+        TOMO_FEE_MODE = isFeeByTomoMode;
+        emit ToggleFeeByTomoMode(TOMO_FEE_MODE);
+    }
+
+    /// @dev Allows to set receiving fee address. Transaction has to be sent by wallet.
+    /// @param wallet Receiving fee address.
+    function setReceivingFeeWallet(address wallet)
+    public
+    onlyWallet
+    {
+        receivingFeeWallet = wallet;
+        emit SetReceivingFeeWallet(receivingFeeWallet);
     }
 
     /// @dev Allows to remove an owner. Transaction has to be sent by wallet.
@@ -463,7 +438,7 @@ contract MyTRC21 is TRC21 {
         owners.length -= 1;
         if (required > owners.length)
             changeRequirement(owners.length);
-        OwnerRemoval(owner);
+        emit OwnerRemoval(owner);
     }
 
     /// @dev Allows to replace an owner with a new owner. Transaction has to be sent by wallet.
@@ -482,8 +457,8 @@ contract MyTRC21 is TRC21 {
             }
         isOwner[owner] = false;
         isOwner[newOwner] = true;
-        OwnerRemoval(owner);
-        OwnerAddition(newOwner);
+        emit OwnerRemoval(owner);
+        emit OwnerAddition(newOwner);
     }
 
     /// @dev Allows to change the number of required confirmations. Transaction has to be sent by wallet.
@@ -494,7 +469,7 @@ contract MyTRC21 is TRC21 {
     validRequirement(owners.length, _required)
     {
         required = _required;
-        RequirementChange(_required);
+        emit RequirementChange(_required);
     }
 
     /// @dev Allows an owner to submit and confirm a transaction.
@@ -521,7 +496,7 @@ contract MyTRC21 is TRC21 {
     notConfirmed(transactionId, msg.sender)
     {
         confirmations[transactionId][msg.sender] = true;
-        Confirmation(msg.sender, transactionId);
+        emit Confirmation(msg.sender, transactionId);
         executeTransaction(transactionId);
     }
 
@@ -534,25 +509,43 @@ contract MyTRC21 is TRC21 {
     notExecuted(transactionId)
     {
         confirmations[transactionId][msg.sender] = false;
-        Revocation(msg.sender, transactionId);
+        emit Revocation(msg.sender, transactionId);
     }
 
     /// @dev Allows an user to burn the token.
     function burn(uint value, bytes data)
+    payable
     public
     {
-        require(value > WITHDRAW_FEE);  //avoid spamming 
-        super._burn(msg.sender, value);
-        if (WITHDRAW_FEE > 0) {
-            super._mint(issuer(), WITHDRAW_FEE);
+        if (TOMO_FEE_MODE) {
+            require(msg.value >= WITHDRAW_FEE_TOMO);  //avoid spamming
+            receivingFeeWallet.transfer(WITHDRAW_FEE_TOMO);
+
+            if(msg.value > WITHDRAW_FEE_TOMO) {
+                msg.sender.transfer(msg.value.sub(WITHDRAW_FEE_TOMO));
+            }
+
+            super._burn(msg.sender, value);
+            burnList.push(TokenBurnData({
+                value: value,
+                burner: msg.sender,
+                data: data 
+            }));
+            emit TokenBurn(burnList.length - 1, msg.sender, value, data);
+        } else {
+            require(value > WITHDRAW_FEE);  //avoid spamming
+            super._burn(msg.sender, value);
+            if (WITHDRAW_FEE > 0) {
+                super._mint(receivingFeeWallet, WITHDRAW_FEE);
+            }
+            uint256 burnValue = value.sub(WITHDRAW_FEE);
+            burnList.push(TokenBurnData({
+                value: burnValue,
+                burner: msg.sender,
+                data: data 
+            }));
+            emit TokenBurn(burnList.length - 1, msg.sender, burnValue, data);
         }
-        uint256 burnValue = value.sub(WITHDRAW_FEE);
-        burnList.push(TokenBurnData({
-            value: burnValue,
-            burner: msg.sender,
-            data: data 
-        }));
-        TokenBurn(burnList.length - 1, msg.sender, burnValue, data);
     }
 
     /// @dev Allows anyone to execute a confirmed transaction.
@@ -573,15 +566,15 @@ contract MyTRC21 is TRC21 {
                 txn.value = txn.value.sub(DEPOSIT_FEE);
                 super._mint(txn.destination, txn.value);
                 if (DEPOSIT_FEE > 0) {
-                    super._mint(issuer(), DEPOSIT_FEE);
+                    super._mint(receivingFeeWallet, DEPOSIT_FEE);
                 }
-                Execution(transactionId);
+                emit Execution(transactionId);
             } else {
                 //transaction that alters the owners list
                 if (txn.destination.call.value(txn.value)(txn.data))
-                    Execution(transactionId);
+                    emit Execution(transactionId);
                 else {
-                    ExecutionFailure(transactionId);
+                    emit ExecutionFailure(transactionId);
                     txn.executed = false;
                 }
             }
@@ -626,7 +619,7 @@ contract MyTRC21 is TRC21 {
             executed: false
         });
         transactionCount += 1;
-        Submission(transactionId);
+        emit Submission(transactionId);
     }
 
     /*
@@ -728,5 +721,4 @@ contract MyTRC21 is TRC21 {
         _value = burnList[burnId].value;
         _data = burnList[burnId].data;
     }
-
 }
